@@ -1,7 +1,7 @@
 --------------Contributers---------------
-Name Natnael wondimieneh
-Github Captn-levi
-Email Natnaelwon@gmail.com
+Name:- Natnael wondimieneh
+Github:- Captn-levi
+Email:- Natnaelwon@gmail.com
 Based on yolo object detection
 
 -----------Install Prerequisites----------
@@ -20,6 +20,7 @@ Based on yolo object detection
 1. Clone or Download the Project or unzip the project folder
  git clone https://github.com/captn-levi/Adaptive-Traffic-Signal-System.git
 
+Remark;- all the files are found inside the backendfolder ignore frontend folder
 
 2. Create & Activate Virtual Environment
 
