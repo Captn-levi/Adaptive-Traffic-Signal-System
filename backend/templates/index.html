@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Adaptive Traffic Signal System</title>
+
+  <!-- Leaflet Map -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+
+    header {
+      background: #020617;
+      padding: 15px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    #container {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      height: calc(100vh - 60px);
+    }
+
+    #map {
+      height: 100%;
+    }
+
+    #panel {
+      padding: 20px;
+      overflow-y: auto;
+      background: #020617;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 6px;
+      border: none;
+      font-size: 14px;
+    }
+
+    input {
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    h3 {
+      margin-top: 20px;
+      color: #38bdf8;
+    }
+
+    .road-box {
+      background: #020617;
+      border: 1px solid #334155;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+
+    #image-section,
+    #analyze-btn,
+    #results {
+      display: none;
+    }
+
+    .result-box {
+      background: #020617;
+      border-left: 4px solid #22c55e;
+      padding: 10px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  🚦 Adaptive Traffic Signal System (YOLO-Based)
+</header>
+
+<div id="container">
+  <div id="map"></div>
+
+  <div id="panel">
+    <h3>1️⃣ Select Junction</h3>
+
+    <input id="lat" placeholder="Latitude" readonly />
+    <input id="lon" placeholder="Longitude" readonly />
+
+    <button onclick="detectRoads()">Detect Incoming Roads</button>
+
+    <div id="image-section">
+      <h3>2️⃣ Upload Road Images</h3>
+    </div>
+
+    <button id="analyze-btn" onclick="analyzeTraffic()">Analyze Traffic</button>
+
+    <div id="results"></div>
+  </div>
+</div>
+
+<script>
+  // ---------------- MAP ----------------
+  const map = L.map("map").setView([9.03, 38.74], 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+  }).addTo(map);
+
+  let marker = null;
+
+  map.on("click", function (e) {
+    if (marker) map.removeLayer(marker);
+    marker = L.marker(e.latlng).addTo(map);
+
+    document.getElementById("lat").value = e.latlng.lat.toFixed(6);
+    document.getElementById("lon").value = e.latlng.lng.toFixed(6);
+  });
+
+  // ---------------- DETECT ROADS ----------------
+  async function detectRoads() {
+    const lat = document.getElementById("lat").value;
+    const lon = document.getElementById("lon").value;
+
+    if (!lat || !lon) {
+      alert("Please select a junction on the map first.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/junction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lon }),
+      });
+
+      const data = await res.json();
+
+      if (data.road_count === 0) {
+        alert("No incoming roads detected.");
+        return;
+      }
+
+      buildImageUploadUI(data.roads);
+    } catch (error) {
+      console.error("Error detecting roads:", error);
+      alert("Failed to detect roads. Check console.");
+    }
+  }
+
+  // ---------------- IMAGE UPLOAD UI ----------------
+  function buildImageUploadUI(roads) {
+    const section = document.getElementById("image-section");
+    section.innerHTML = "<h3>2️⃣ Upload Road Images</h3>";
+    section.style.display = "block";
+
+    roads.forEach((road) => {
+      const div = document.createElement("div");
+      div.className = "road-box";
+      div.innerHTML = `
+        <strong>${road}</strong>
+        <input type="file" name="${road}" accept="image/*" required />
+      `;
+      section.appendChild(div);
+    });
+
+    document.getElementById("analyze-btn").style.display = "block";
+  }
+
+  // ---------------- ANALYZE ----------------
+  async function analyzeTraffic() {
+    const formData = new FormData();
+    const inputs = document.querySelectorAll("#image-section input");
+
+    for (let input of inputs) {
+      if (!input.files.length) {
+        alert("Please upload all road images.");
+        return;
+      }
+      formData.append(input.name, input.files[0]);
+    }
+
+    try {
+      const res = await fetch("/upload_images", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        alert("Error analyzing traffic");
+        return;
+      }
+
+      const data = await res.json();
+      console.log("ANALYSIS RESPONSE:", data);
+      showResults(data);
+    } catch (error) {
+      console.error("Fetch error:", error);
+      alert("Failed to analyze traffic. Check console for details.");
+    }
+  }
+
+  // ---------------- RESULTS ----------------
+  function showResults(data) {
+    const resultsDiv = document.getElementById("results");
+    resultsDiv.style.display = "block";
+    resultsDiv.innerHTML = "<h3>3️⃣ Traffic Analysis Results</h3>";
+
+    for (let road in data.results) {
+      resultsDiv.innerHTML += `
+        <div class="result-box">
+          <p><b>${road}</b></p>
+          <p>Vehicles detected: ${data.results[road].vehicle_count}</p>
+          <p>Green time: ${data.signal_times[road]} seconds</p>
+        </div>
+      `;
+    }
+  }
+</script>
+
+</body>
+</html>
